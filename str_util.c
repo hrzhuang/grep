@@ -35,5 +35,6 @@ struct str *get_line(void) {
     }
     if (str_len(str) > 0)
         return str;
+    str_del(str);
     return NULL;
 }
