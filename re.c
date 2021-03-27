@@ -44,6 +44,14 @@ struct frag {
     size_t accept;
 };
 
+static void frag_char(struct state_vec *states, struct frag *frag, char c) {
+    struct state *start = alloc_state(states, &frag->start);
+    alloc_state(states, &frag->accept);
+    start->trans_type = EXPECT_CHAR;
+    start->dest = frag->accept;
+    start->expected_char = c;
+}
+
 static void frag_any(struct state_vec *states, struct frag *frag) {
     struct state *start = alloc_state(states, &frag->start);
     alloc_state(states, &frag->accept);
@@ -119,7 +127,34 @@ static bool parse_atom(struct state_vec *states, const struct str *str,
             frag_any(states, frag);
             break;
         }
-        // todo: add escape sequences
+        case '\\': {
+            ++*pos;
+            if (*pos == str_len(str))
+                return false;
+            switch (str_get(str, *pos)) {
+                case '.':
+                case '[':
+                case '\\':
+                case '(':
+                case ')':
+                case '*':
+                case '+':
+                case '?':
+                case '{':
+                case '|':
+                case '^':
+                case '$':
+                {
+                    frag_char(states, frag, str_get(str, *pos));
+                    break;
+                }
+                default: {
+                    return false;
+                }
+            }
+            ++*pos;
+            break;
+        }
         case '(': {
             ++*pos;
             if (!parse_union(states, str, pos, frag))
@@ -130,11 +165,7 @@ static bool parse_atom(struct state_vec *states, const struct str *str,
             break;
         }
         default: {
-            struct state *start = alloc_state(states, &frag->start);
-            alloc_state(states, &frag->accept);
-            start->trans_type = EXPECT_CHAR;
-            start->dest = frag->accept;
-            start->expected_char = str_get(str, *pos);
+            frag_char(states, frag, str_get(str, *pos));
             ++*pos;
         }
     }
