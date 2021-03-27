@@ -8,6 +8,8 @@ int main(int argc, char **argv) {
     struct str *re_str = str_from(argv[1]);
     struct re *re = re_compile(re_str);
     str_del(re_str);
+    if (!re)
+        return 2;
     bool matched = false;
     for (struct str *line = get_line(); line; line = get_line()) {
         if (re_match(re, line)) {

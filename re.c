@@ -76,17 +76,20 @@ static void frag_link(struct state_vec *states, struct frag *frag1,
     accept->dest = frag2->start;
 }
 
-static void parse_atom(struct state_vec *states, const struct str *str,
+static bool parse_union(struct state_vec *states, const struct str *str,
+        size_t *pos, struct frag *frag);
+
+static bool parse_atom(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag) {
     if (*pos == str_len(str)) {
         struct state *start = alloc_state(states, &frag->start);
         alloc_state(states, &frag->accept);
         start->trans_type = SINGLE_EPS;
         start->dest = frag->accept;
-        return;
+        return true;
     }
     switch (str_get(str, *pos)) {
-        // case ')':
+        case ')':
         case '|':
         {
             struct state *start = alloc_state(states, &frag->start);
@@ -117,7 +120,15 @@ static void parse_atom(struct state_vec *states, const struct str *str,
             break;
         }
         // todo: add escape sequences
-        // todo: add parenthesized group
+        case '(': {
+            ++*pos;
+            if (!parse_union(states, str, pos, frag))
+                return false;
+            if (str_get(str, *pos) != ')')
+                return false;
+            ++*pos;
+            break;
+        }
         default: {
             struct state *start = alloc_state(states, &frag->start);
             alloc_state(states, &frag->accept);
@@ -127,42 +138,50 @@ static void parse_atom(struct state_vec *states, const struct str *str,
             ++*pos;
         }
     }
+    return true;
 }
 
-static void parse_asterate(struct state_vec *states, const struct str *str,
+static bool parse_asterate(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag) {
-    parse_atom(states, str, pos, frag);
+    if (!parse_atom(states, str, pos, frag))
+        return false;
     if (*pos < str_len(str) && str_get(str, *pos) == '*') {
         do
             ++*pos;
         while (*pos < str_len(str) && str_get(str, *pos) == '*');
         frag_asterate(states, frag);
     }
+    return true;
 }
 
-static void parse_concat(struct state_vec *states, const struct str *str,
+static bool parse_concat(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag) {
-    parse_asterate(states, str, pos, frag);
+    if (!parse_asterate(states, str, pos, frag))
+        return false;
     while (
         *pos < str_len(str)
         && str_get(str, *pos) != '|'
-        // && str_get(str, *pos) != ')'
+        && str_get(str, *pos) != ')'
     ) {
         struct frag another;
-        parse_asterate(states, str, pos, &another);
+        if (!parse_asterate(states, str, pos, &another))
+            return false;
         frag_link(states, frag, &another);
         frag->accept = another.accept; 
     }
+    return true;
 }
 
-static void parse_union(struct state_vec *states, const struct str *str,
+static bool parse_union(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag) {
-    parse_concat(states, str, pos, frag);
+    if (!parse_concat(states, str, pos, frag))
+        return false;
     while (*pos < str_len(str) && str_get(str, *pos) == '|') {
         ++*pos;
         struct frag operand1 = *frag;
         struct frag operand2;
-        parse_concat(states, str, pos, &operand2);
+        if (!parse_concat(states, str, pos, &operand2))
+            return false;
 
         struct state *new_start = alloc_state(states, &frag->start);
         alloc_state(states, &frag->accept);
@@ -178,13 +197,17 @@ static void parse_union(struct state_vec *states, const struct str *str,
         op2_accept->trans_type = SINGLE_EPS;
         op2_accept->dest = frag->accept;
     }
+    return true;
 }
 
 struct re *re_compile(struct str *str) {
     struct state_vec *states = state_vec_new();
     size_t pos = 0;
     struct frag frag;
-    parse_union(states, str, &pos, &frag);
+    if (!parse_union(states, str, &pos, &frag)) {
+        state_vec_del(states);
+        return NULL;
+    }
 
     if (pos != str_len(str)) {
         state_vec_del(states);
