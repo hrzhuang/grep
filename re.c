@@ -124,7 +124,7 @@ static bool parse_atom(struct state_vec *states, const struct str *str,
             ++*pos;
             if (!parse_union(states, str, pos, frag))
                 return false;
-            if (str_get(str, *pos) != ')')
+            if (*pos == str_len(str) || str_get(str, *pos) != ')')
                 return false;
             ++*pos;
             break;
