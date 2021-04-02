@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "state.h"
 #include "state_vec.h"
 
 struct state_vec {
@@ -20,7 +21,7 @@ struct state_vec *state_vec_new(void) {
 
 void state_vec_del(struct state_vec *vec) {
     for (size_t i = 0; i < vec->len; ++i) {
-        free(vec->arr[i]);
+        state_del(vec->arr[i]);
     }
     free(vec->arr);
     free(vec);

@@ -24,13 +24,30 @@ struct state {
         EXPECT_ANY,
         EXPECT_START,
         EXPECT_END,
+        EXPECT_SET,
+        EXPECT_NOT_SET,
     } trans_type;
     union {
         size_t dest;
         size_t dests[2];
     };
-    char expected_char;
+    union {
+        char expected_char;
+        struct subset *set;
+    };
 };
+
+void state_del(struct state *state) {
+    switch (state->trans_type) {
+        case EXPECT_SET:
+        case EXPECT_NOT_SET:
+        {
+            subset_del(state->set);
+            break;
+        }
+    }
+    free(state);
+}
 
 static struct state *alloc_state(struct state_vec *states, size_t *index) {
     struct state *state = malloc(sizeof *state);
@@ -86,6 +103,48 @@ static void frag_link(struct state_vec *states, struct frag *frag1,
 
 static bool parse_union(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag);
+
+static bool parse_bracket_expr(struct state_vec *states, const struct str *str,
+        size_t *pos, struct frag *frag) {
+    // Parse '['
+    if (*pos == str_len(str) || str_get(str, *pos) != '[')
+        return false;
+    ++*pos;
+
+    // Parse '^'
+    if (*pos == str_len(str))
+        return false;
+    bool expect_not = false;
+    if (str_get(str, *pos) == '^') {
+        ++*pos;
+        expect_not = true;
+    }
+
+    // Parse ']' as first element
+    if (*pos == str_len(str))
+        return false;
+    struct subset *set = subset_new(256);
+    if (str_get(str, *pos) == ']') {
+        ++*pos;
+        subset_add(set, ']');
+    }
+
+    while (*pos < str_len(str)) {
+        if (str_get(str, *pos) == ']') {
+            ++*pos;
+            struct state *start = alloc_state(states, &frag->start);
+            alloc_state(states, &frag->accept);
+            start->trans_type = expect_not ? EXPECT_NOT_SET : EXPECT_SET;
+            start->dest = frag->accept;
+            start->set = set;
+            return true;
+        }
+        subset_add(set, str_get(str, *pos));
+        ++*pos;
+    }
+    subset_del(set);
+    return false;
+}
 
 static bool parse_atom(struct state_vec *states, const struct str *str,
         size_t *pos, struct frag *frag) {
@@ -162,6 +221,11 @@ static bool parse_atom(struct state_vec *states, const struct str *str,
             if (*pos == str_len(str) || str_get(str, *pos) != ')')
                 return false;
             ++*pos;
+            break;
+        }
+        case '[': {
+            if (!parse_bracket_expr(states, str, pos, frag))
+                return false;
             break;
         }
         default: {
@@ -309,6 +373,16 @@ bool re_match(struct re *re, struct str *str) {
                 }
                 case EXPECT_ANY: {
                     state_set_add(new_set, state->dest);
+                    break;
+                }
+                case EXPECT_SET: {
+                    if (subset_has(state->set, c))
+                        state_set_add(new_set, state->dest);
+                    break;
+                }
+                case EXPECT_NOT_SET: {
+                    if (!subset_has(state->set, c))
+                        state_set_add(new_set, state->dest);
                     break;
                 }
             }
