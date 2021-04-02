@@ -139,7 +139,7 @@ static bool parse_bracket_expr(struct state_vec *states, const struct str *str,
             start->set = set;
             return true;
         }
-        subset_add(set, str_get(str, *pos));
+        subset_add(set, (unsigned char) str_get(str, *pos));
         ++*pos;
     }
     subset_del(set);
@@ -376,12 +376,12 @@ bool re_match(struct re *re, struct str *str) {
                     break;
                 }
                 case EXPECT_SET: {
-                    if (subset_has(state->set, c))
+                    if (subset_has(state->set, (unsigned char) c))
                         state_set_add(new_set, state->dest);
                     break;
                 }
                 case EXPECT_NOT_SET: {
-                    if (!subset_has(state->set, c))
+                    if (!subset_has(state->set, (unsigned char) c))
                         state_set_add(new_set, state->dest);
                     break;
                 }
