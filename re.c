@@ -120,17 +120,28 @@ static bool parse_bracket_expr(struct state_vec *states, const struct str *str,
         expect_not = true;
     }
 
-    // Parse ']' as first element
+    char prev_c;
+
+    // Parse ']' or '-' as first element
     if (*pos == str_len(str))
         return false;
     struct subset *set = subset_new(256);
     if (str_get(str, *pos) == ']') {
         ++*pos;
         subset_add(set, ']');
+        prev_c = ']';
+    }
+    else if (str_get(str, *pos) == '-') {
+        ++*pos;
+        subset_add(set, '-');
+        prev_c = '-';
     }
 
     while (*pos < str_len(str)) {
-        if (str_get(str, *pos) == ']') {
+        char c = str_get(str, *pos);
+
+        // Parse ']'
+        if (c == ']') {
             ++*pos;
             struct state *start = alloc_state(states, &frag->start);
             alloc_state(states, &frag->accept);
@@ -139,7 +150,21 @@ static bool parse_bracket_expr(struct state_vec *states, const struct str *str,
             start->set = set;
             return true;
         }
-        subset_add(set, (unsigned char) str_get(str, *pos));
+
+        // Parse range
+        if (c == '-' && *pos + 1 < str_len(str)) {
+            char next_c = str_get(str, *pos + 1);
+            if (next_c != ']') {
+                for (unsigned char i = next_c; i > (unsigned char) prev_c; --i)
+                    subset_add(set, i);
+                prev_c = next_c;
+                *pos += 2;
+                continue;
+            }
+        }
+
+        subset_add(set, (unsigned char) c);
+        prev_c = c;
         ++*pos;
     }
     subset_del(set);
