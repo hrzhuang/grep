@@ -1,12 +1,25 @@
 # grep
 
-This is an implementation of the UNIX grep utility. The usage is as follows:
+This is an implementation of the UNIX grep utility.
+
+## Usage
+
 ```
 grep REGEXP
 ```
 where `REGEXP` is a regular expression as specified later.  The utility will
 read lines from standard input and write to standard output those lines that
 match `REGEXP`.
+
+## Building
+
+A C11 compiler and GNU Make are required for building. To build the grep
+executable, simply run:
+```
+make
+```
+
+## Regular Expressions
 
 A subset of POSIX extended regular expressions is supported. Specifically,
 the following:
@@ -40,6 +53,8 @@ the following:
 The operators in order of precedence, from high to low, are `*`, concatenation,
 and `|`. Additionally, `(` and `)` can be used to give the highest precedence
 to the enclosed subexpression.
+
+## Note on Characters
 
 This implementation simply treats each byte as a character, with special
 characters in regular expressions interpreted according to their values in
