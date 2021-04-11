@@ -222,9 +222,6 @@ static bool parse_atom(struct state_vec *states, const struct str *str,
                 case '(':
                 case ')':
                 case '*':
-                case '+':
-                case '?':
-                case '{':
                 case '|':
                 case '^':
                 case '$':
